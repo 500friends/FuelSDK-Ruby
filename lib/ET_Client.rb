@@ -45,47 +45,20 @@ class ET_Constructor
 end
 
 class ET_CreateWSDL
-  
-  def initialize(path)
-    # Get the header info for the correct wsdl
-  @wsdl_filename = "/#{Digest::MD5.hexdigest(@wsdl)}.xml"
-	response = HTTPI.head(@wsdl)
-	if response and (response.code >= 200 and response.code <= 400) then
-		header = response.headers
-		# Check when the WSDL was last modified
-		modifiedTime = Date.parse(header['last-modified'])
-
-		# create directory if necessary
-		unless File.directory?(path)
-			FileUtils.mkdir_p(path)
-		end
-		p = path + @wsdl_filename
-		# Check if a local file already exists
-		if (File.file?(p) and File.readable?(p) and !File.zero?(p)) then
-			createdTime = File.new(p).mtime.to_date
-			
-			# Check if the locally created WSDL older than the production WSDL
-			if createdTime < modifiedTime then
-				createIt = true
-			else
-				createIt = false
-			end
-		else
-			createIt = true
-		end
-		
-		if createIt then
-			res = open(@wsdl).read
-			File.open(p, 'w+') { |f|
-				f.write(res)
-			}
-		end
-		@status = response.code
-	else
-		@status = response.code
+	def initialize(path)
+		@wsdl_filename = "/#{Digest::MD5.hexdigest(@wsdl)}.xml"
+		@status = 200
+		fetch_wsdl(path) { open(@wsdl).read }
 	end
- 
-  end
+
+	# Cache the wsdl indefinitely, until cleared by removing "/tmp/libs/fuelsdk/*.xml"
+	def fetch_wsdl(path, &block)
+		FileUtils.mkdir_p(path) unless File.directory?(path)
+		filepath = path + @wsdl_filename
+		if !File.file?(filepath) || (File.readable?(filepath) && File.zero?(filepath))
+			File.open(filepath, 'w+') { |f| f.write(block.call) }
+		end
+	end
 end
 
 class ET_Client < ET_CreateWSDL
